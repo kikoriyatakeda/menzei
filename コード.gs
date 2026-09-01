@@ -145,11 +145,15 @@ function convertToDB(sheetA3, sheetTransform, sheetName) {
 
   for (let i = 0; i < maxMachines; i++) {
     let offset = i * 8; 
-    let machineNum  = data[7][3 + offset]; 
+    let mNumRaw = data[7][3 + offset]; 
+    
+    // ★修正：空欄だけでなく「-（ハイフン）」などの記号も無視する
+    if (!mNumRaw) continue;
+    let machineNum = String(mNumRaw).trim();
+    if (machineNum === "" || machineNum === "-" || machineNum === "ー" || machineNum === "−" || machineNum === "‐") continue;
+
     let machineName = data[7][5 + offset]; 
     let location    = data[8][3 + offset]; 
-
-    if (!machineNum) continue;
 
     for (let day = 0; day < 31; day++) {
       let rowIdx = (day === 0) ? 11 : 12 + day;
@@ -179,7 +183,6 @@ function convertToDB(sheetA3, sheetTransform, sheetName) {
 
   const maxRows = sheetTransform.getMaxRows();
   if (maxRows > 3) {
-    // ★修正: A〜M列（13列分）をクリアするように変更
     sheetTransform.getRange(4, 1, maxRows - 3, 13).clearContent();
   }
 
@@ -189,7 +192,6 @@ function convertToDB(sheetA3, sheetTransform, sheetName) {
     return "機械番号などが入力されていないため、データを作成できませんでした。";
   }
 
-  // ★大修正：L列(シート名)と被らないように、計算式を【M列】に移動しました！
   sheetTransform.getRange("M3").setValue("前月末在庫");
   sheetTransform.getRange("M4").setFormula('=IFERROR(INDEX(SORT(FILTER(DB!J:J, DB!B:B < DATE(YEAR(B4), MONTH(B4), 1)), FILTER(DB!B:B, DB!B:B < DATE(YEAR(B4), MONTH(B4), 1)), FALSE), 1, 1), 0)');
   
@@ -309,8 +311,9 @@ function loadFromDB() {
           actualSiteName = String(row[4]).trim();
         }
         
-        let mNum = row[2];
-        if (mNum !== "" && uniqueMachines.indexOf(mNum) === -1) {
+        let mNum = String(row[2]).trim(); 
+        // ★修正：読込時も「-（ハイフン）」などの記号は無視する
+        if (mNum !== "" && mNum !== "-" && mNum !== "ー" && mNum !== "−" && mNum !== "‐" && uniqueMachines.indexOf(mNum) === -1) {
           uniqueMachines.push(mNum);
         }
       }
@@ -363,12 +366,13 @@ function loadFromDB() {
       let mNum = (m < uniqueMachines.length) ? uniqueMachines[m] : "";
       let sName = (m < uniqueMachines.length) ? taskSiteName : "";
       
-      let mNumValue = (mNum !== "" && !isNaN(mNum)) ? Number(mNum) : mNum;
+      let targetCell = sheet.getRange(8, 4 + m * 8);
+      targetCell.setNumberFormat('@'); 
+      targetCell.setValue(String(mNum));
       
-      sheet.getRange(8, 4 + m * 8).setValue(mNumValue);  
       sheet.getRange(9, 4 + m * 8).setValue(sName); 
       
-      sheetMachines.push(mNum);
+      sheetMachines.push(String(mNum));
     }
 
     let restoreData = new Array(32).fill(null).map(() => new Array(58).fill(""));
@@ -395,7 +399,7 @@ function loadFromDB() {
       let arrRowIdx = (day === 1) ? 0 : day;
       if (arrRowIdx < 0 || arrRowIdx > 31) continue;
 
-      let machineNum = row[2];
+      let machineNum = String(row[2]).trim();
       let transactionVol = row[5];
       let usageVol = row[6];
       let status = row[7];
